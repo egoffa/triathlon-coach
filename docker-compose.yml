@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # Ollama LLM Service - runs Llama models locally
+  ollama:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.ollama
+    container_name: triathlon-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - triathlon-network
+
+  # Redis Cache Service
+  redis:
+    image: redis:7-alpine
+    container_name: triathlon-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - triathlon-network
+
+  # Main Application Service
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.app
+    container_name: triathlon-coach-app
+    ports:
+      - "8000:8000"
+    depends_on:
+      ollama:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - REDIS_URL=redis://redis:6379
+      - ENVIRONMENT=production
+    env_file:
+      - .env
+    volumes:
+      - ./src:/app/src
+      - ./config:/app/config
+      - logs:/app/logs
+    networks:
+      - triathlon-network
+    restart: unless-stopped
+
+volumes:
+  ollama_models:
+    driver: local
+  redis_data:
+    driver: local
+  logs:
+    driver: local
+
+networks:
+  triathlon-network:
+    driver: bridge

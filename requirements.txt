@@ -1,0 +1,50 @@
+# Core AI/ML Framework
+crewai
+crewai-tools
+
+# LLM & Embedding
+ollama
+langchain
+langchain-ollama
+
+# MCP (Model Context Protocol)
+mcp
+pydantic
+
+# Data Clients
+stravalib
+garminconnect
+
+# Web Framework
+fastapi
+uvicorn
+pydantic-settings
+
+# Database/Caching
+redis
+sqlalchemy
+
+# Data Processing
+pandas
+numpy
+
+# Utilities
+python-dotenv
+requests
+httpx
+
+# Logging & Monitoring
+python-json-logger
+loguru
+
+# Testing
+pytest
+pytest-asyncio
+pytest-cov
+
+# Development
+black
+flake8
+mypy
+ipython
+jupyter
