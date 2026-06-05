@@ -2,7 +2,7 @@
 import httpx
 import json
 import logging
-import asyncio
+import time
 from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -143,7 +143,7 @@ class OllamaHandler:
                     logger.error(f"Failed to parse JSON after {retries} attempts: {e}")
                     raise
                 logger.warning(f"JSON parse attempt {attempt + 1} failed, retrying...")
-                await asyncio.sleep(0.5)
+                time.sleep(0.5)  # Wait before retry
         
         raise ValueError("Failed to generate valid JSON")
     

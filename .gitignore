@@ -1,6 +1,7 @@
 # Folders to ignore
 guide/*.md
 src/utils/config.py
+url.py
 
 # Environment variables
 .env

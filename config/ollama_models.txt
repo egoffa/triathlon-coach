@@ -1,0 +1,19 @@
+# Ollama Model Configuration
+# Uncomment the model you want to use
+
+# Lightweight (4-6GB RAM) - Good for development
+llama2:7b
+
+# Alternative lightweight models
+# neural-chat:7b
+# openchat:7b
+# mistral:7b
+
+# Powerful (8-10GB RAM) - Better accuracy
+# llama2:13b
+# neural-chat:13b
+
+# Model selection guide:
+# - For CPU only: llama2:7b or neural-chat:7b
+# - For GPU with 4GB VRAM: mistral:7b
+# - For GPU with 8GB+ VRAM: llama2:13b or neural-chat:13b
