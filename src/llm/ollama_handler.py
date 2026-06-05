@@ -15,7 +15,7 @@ class OllamaHandler:
         self,
         base_url: str = "http://localhost:11434",
         model: str = "llama2:7b",
-        timeout: int = 60
+        timeout: int = 120
     ):
         """
         Initialize Ollama handler
@@ -28,7 +28,14 @@ class OllamaHandler:
         self.base_url = base_url.rstrip('/')
         self.model = model
         self.timeout = timeout
-        self.client = httpx.Client(timeout=timeout)
+        self.client = httpx.Client(
+            timeout=httpx.Timeout(
+                connect=10.0,
+                read=timeout,
+                write=timeout,
+                pool=10.0
+            )
+        )
     
     def health_check(self) -> bool:
         """Check if Ollama is running and responsive"""
