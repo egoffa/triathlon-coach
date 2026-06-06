@@ -320,8 +320,7 @@ docker-compose restart ollama
 triathlon-coach/
 ├── src/                          # Source code
 │   ├── agents/                   # CrewAI agents
-│   │   ├── coach_agent.py
-│   │   ├── base_agent.py
+│   │   ├── standalone_crew.py
 │   │   └── __init__.py
 │   ├── api/                      # FastAPI endpoints
 │   │   ├── main.py
@@ -358,19 +357,6 @@ triathlon-coach/
 ---
 
 ## 🧪 Testing
-
-### Test Strava Connection
-
-```bash
-python strava_diagnostic.py
-```
-
-Should show:
-```
-✅ Client initialized
-✅ Athlete read works!
-✅ Raw activities endpoint works!
-```
 
 ### Test LLM
 

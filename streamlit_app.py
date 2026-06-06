@@ -1,8 +1,7 @@
-"""Streamlit interface for Triathlon Coach AI"""
+"""Streamlit interface for Triathlon Coach AI - Standalone Multi-Agent System"""
 import streamlit as st
 import logging
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import datetime
 import redis
 import redis.exceptions
 
@@ -10,7 +9,7 @@ from src.utils.config import get_settings
 from src.utils.logger import setup_logging
 from src.llm.ollama_handler import OllamaHandler
 from src.data.strava_client import StravaClient
-from src.agents.coach_agent import CoachAgent
+from src.agents.standalone_crew import TriathlonCoachCrew
 
 # Configure page
 st.set_page_config(
@@ -31,10 +30,8 @@ if "ollama_handler" not in st.session_state:
     st.session_state.ollama_handler = None
 if "redis_client" not in st.session_state:
     st.session_state.redis_client = None
-if "coach_agent" not in st.session_state:
-    st.session_state.coach_agent = None
-if "athlete_data" not in st.session_state:
-    st.session_state.athlete_data = None
+if "coaching_crew" not in st.session_state:
+    st.session_state.coaching_crew = None
 
 
 @st.cache_resource
@@ -44,6 +41,7 @@ def init_services():
         "strava": False,
         "ollama": False,
         "redis": False,
+        "crew": False,
         "errors": []
     }
     
@@ -53,7 +51,8 @@ def init_services():
             st.session_state.strava_client = StravaClient(
                 client_id=settings.strava_client_id,
                 client_secret=settings.strava_client_secret,
-                refresh_token=settings.strava_refresh_token
+                refresh_token=settings.strava_refresh_token,
+                access_token=settings.strava_access_token
             )
             results["strava"] = True
             logger.info("✓ Strava initialized")
@@ -88,17 +87,24 @@ def init_services():
         st.session_state.redis_client.ping()
         results["redis"] = True
         logger.info("✓ Redis initialized")
+    except redis.exceptions.ConnectionError:
+        st.session_state.redis_client = None
+        results["redis"] = False
+        logger.warning("Redis connection failed (caching disabled)")
     except Exception as e:
         st.session_state.redis_client = None
         results["redis"] = False
-        logger.warning(f"Redis connection failed: {e}")
+        logger.error(f"Redis initialization failed: {e}")
     
-    # Initialize Coach Agent
-    try:
-        st.session_state.coach_agent = CoachAgent()
-        logger.info("✓ Coach agent initialized")
-    except Exception as e:
-        logger.error(f"Coach agent init error: {e}")
+    # Initialize Coaching Crew
+    if results["ollama"]:
+        try:
+            st.session_state.coaching_crew = TriathlonCoachCrew(st.session_state.ollama_handler)
+            results["crew"] = True
+            logger.info("✓ Coaching crew initialized (3 agents - standalone)")
+        except Exception as e:
+            logger.error(f"Coaching crew init error: {e}")
+            results["errors"].append(f"Crew error: {str(e)}")
     
     return results
 
@@ -108,14 +114,14 @@ def display_header():
     col1, col2 = st.columns([3, 1])
     with col1:
         st.title("🏊 Triathlon Coach AI")
-        st.markdown("*AI-powered triathlon coaching with local LLMs*")
+        st.markdown("*AI-powered triathlon coaching with 3 concurrent agents*")
     with col2:
         st.metric("Model", settings.ollama_model)
 
 
 def display_health_status(health_results):
     """Display service health status"""
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
         status = "✅ OK" if health_results["strava"] else "❌ Failed"
@@ -130,7 +136,12 @@ def display_health_status(health_results):
         st.metric("Redis", status)
     
     with col4:
-        status = "✅ Ready" if health_results["strava"] and health_results["ollama"] else "❌ Error"
+        status = "✅ OK" if health_results["crew"] else "❌ Failed"
+        st.metric("Crew", status)
+    
+    with col5:
+        all_ok = health_results["strava"] and health_results["ollama"] and health_results["crew"]
+        status = "✅ Ready" if all_ok else "❌ Error"
         st.metric("Overall", status)
     
     # Display errors if any
@@ -147,7 +158,7 @@ def fetch_activities(days: int, limit: int):
         return None
     
     try:
-        with st.spinner(f"Fetching activities from last {days} days..."):
+        with st.spinner(f"🔄 Fetching activities from last {days} days..."):
             activities = st.session_state.strava_client.get_activities(
                 limit=limit,
                 days=days
@@ -159,56 +170,39 @@ def fetch_activities(days: int, limit: int):
         return None
 
 
-def analyze_activities(activities):
-    """Analyze activities with coach agent"""
-    if not st.session_state.coach_agent:
-        st.error("Coach agent not initialized")
+def run_crew_analysis(activities, goal: str = "olympic"):
+    """Run coaching crew analysis"""
+    if not st.session_state.coaching_crew:
+        st.error("Coaching crew not initialized")
         return None
     
     try:
-        with st.spinner("Analyzing activities..."):
-            analysis = st.session_state.coach_agent.execute(activities)
+        with st.spinner("🧠 Running concurrent crew analysis (Coach + Analytics + Planning)..."):
+            analysis = st.session_state.coaching_crew.analyze_activities(
+                activities=activities,
+                goal=goal
+            )
         return analysis
     except Exception as e:
-        st.error(f"Error analyzing activities: {e}")
-        logger.error(f"Error analyzing activities: {e}")
+        st.error(f"Error in crew analysis: {e}")
+        logger.error(f"Error in crew analysis: {e}")
         return None
 
 
-def get_ai_insights(activities):
-    """Get AI insights from Ollama"""
-    if not st.session_state.ollama_handler:
-        st.error("Ollama not initialized")
-        return None
-    
-    try:
-        with st.spinner("Generating AI insights..."):
-            # Prepare activity summary
-            activities_summary = "\n".join([
-                f"- {a.name} ({a.type}): {a.distance/1000:.1f}km, {a.duration//60}min"
-                for a in activities
-            ])
+def display_crew_status():
+    """Display crew status in sidebar"""
+    if st.session_state.coaching_crew:
+        status = st.session_state.coaching_crew.get_crew_info()
+        with st.expander("🤖 Crew Status"):
+            st.write(f"**Crew:** {status.get('crew_name', 'Unknown')}")
+            st.write(f"**Agents:** {status.get('agents', 0)}")
+            st.write(f"**Mode:** {status.get('execution_mode', 'Unknown')}")
             
-            system_prompt = """You are an expert triathlon coach. Analyze training and provide coaching insights."""
-            
-            prompt = f"""Analyze these recent triathlon training activities:
-
-{activities_summary}
-
-Provide a brief coaching analysis with 2-3 key recommendations. Be concise and actionable.
-Respond in plain text, no JSON needed."""
-            
-            response = st.session_state.ollama_handler.generate(
-                prompt=prompt,
-                system_prompt=system_prompt,
-                temperature=0.7,
-                max_tokens=500
-            )
-        return response
-    except Exception as e:
-        st.error(f"Error generating insights: {e}")
-        logger.error(f"Error generating insights: {e}")
-        return None
+            agent_roles = status.get("agent_roles", [])
+            if agent_roles:
+                st.write("**Agent Roles:**")
+                for i, role in enumerate(agent_roles, 1):
+                    st.write(f"  {i}. {role}")
 
 
 def main():
@@ -225,19 +219,23 @@ def main():
     st.markdown("---")
     
     # Check if essential services are available
-    if not (health_results["strava"] and health_results["ollama"]):
-        st.error("⚠️ Essential services not available. Please check .env configuration and try again.")
+    if not (health_results["strava"] and health_results["crew"]):
+        st.error("⚠️ Essential services not available. Please check .env configuration.")
         st.info("""
         To fix:
         1. Ensure Strava credentials are in .env
-        2. Make sure Ollama is running: `docker-compose logs ollama`
-        3. Check that docker-compose up completed successfully
+        2. Make sure Ollama is running: docker-compose up or ollama serve
+        3. Restart the app
         """)
         return
     
     # Sidebar configuration
     with st.sidebar:
         st.header("⚙️ Configuration")
+        
+        display_crew_status()
+        
+        st.markdown("---")
         
         # Fetch configuration
         days_back = st.slider(
@@ -256,22 +254,22 @@ def main():
             step=5
         )
         
-        # Fixed: Use index instead of value
-        analysis_options = ["Coach Analysis", "AI Insights", "Both"]
-        analysis_type = st.radio(
-            "Analysis type",
-            options=analysis_options,
-            index=2  # Default to "Both" (index 2)
+        # Training goal
+        goal = st.selectbox(
+            "Training goal",
+            ["sprint", "olympic", "halfim", "ironman"],
+            index=1
         )
         
         st.markdown("---")
         st.markdown("### 📊 System Info")
-        st.write(f"**Model**: {settings.ollama_model}")
-        st.write(f"**Environment**: {settings.environment}")
-        st.write(f"**Verbose**: {settings.crew_ai_verbose}")
+        st.write(f"**Model:** {settings.ollama_model}")
+        st.write(f"**Agents:** 3 (concurrent)")
+        st.write(f"**Framework:** Standalone (no CrewAI)")
+        st.write(f"**Environment:** {settings.environment}")
     
     # Main content
-    st.header("📊 Training Analysis")
+    st.header("📊 Multi-Agent Coaching Analysis")
     
     # Fetch activities button
     if st.button("🔄 Fetch Activities", key="fetch_btn", use_container_width=True):
@@ -306,46 +304,30 @@ def main():
         
         st.markdown("---")
         
-        # Coach Analysis
-        if analysis_type in ["Coach Analysis", "Both"]:
-            st.header("🏆 Coach Analysis")
+        # Run crew analysis button
+        if st.button("🧠 Run Crew Analysis (Coach + Analytics + Planning)", use_container_width=True):
+            crew_analysis = run_crew_analysis(activities, goal)
             
-            if st.button("Analyze with Coach Agent", key="coach_btn", use_container_width=True):
-                analysis = analyze_activities(activities)
+            if crew_analysis and crew_analysis.get("status") == "success":
+                st.session_state.crew_analysis = crew_analysis
+
+                st.subheader("📊 Analytics")
+                analytics_output = crew_analysis.get("analytics_analysis", "Pending...")
+                st.info(analytics_output)
                 
-                if analysis:
-                    col1, col2 = st.columns([1, 1])
-                    
-                    with col1:
-                        st.subheader("Analysis")
-                        st.info(analysis.analysis)
-                    
-                    with col2:
-                        st.subheader("Focus Areas")
-                        for area in analysis.focus_areas:
-                            st.write(f"• {area}")
-                    
-                    st.subheader("Recommendations")
-                    for i, rec in enumerate(analysis.recommendations, 1):
-                        st.write(f"{i}. {rec}")
-                    
-                    st.subheader("Next Workouts")
-                    for workout in analysis.next_workout_suggestions:
-                        st.write(f"• {workout}")
-                    
-                    if analysis.warnings:
-                        st.warning("⚠️ Warnings: " + ", ".join(analysis.warnings))
-        
-        # AI Insights
-        if analysis_type in ["AI Insights", "Both"]:
-            st.markdown("---")
-            st.header("🤖 AI Insights")
-            
-            if st.button("Generate AI Insights", key="ai_btn", use_container_width=True):
-                insights = get_ai_insights(activities)
+                # Status information
+                st.markdown("---")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Agents Executed", crew_analysis.get("agents_executed", 0))
+                with col2:
+                    st.metric("Activities Analyzed", crew_analysis.get("activities_analyzed", 0))
+                with col3:
+                    st.metric("Mode", crew_analysis.get("execution_mode", "Unknown").split("(")[0].strip())
                 
-                if insights:
-                    st.markdown(insights)
+                # Timestamp
+                timestamp = crew_analysis.get("timestamp", "Unknown")
+                st.caption(f"Analysis completed at: {timestamp}")
     
     else:
         st.info("👆 Click 'Fetch Activities' to get started!")
@@ -354,11 +336,11 @@ def main():
     st.markdown("---")
     col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
-        st.caption("🏊 Triathlon Coach AI v1.0")
+        st.caption("🏊 Triathlon Coach AI v2.0")
     with col2:
         st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     with col3:
-        st.caption("Powered by Ollama & FastAPI")
+        st.caption("3-Agent Standalone | Coach + Analytics + Planning")
 
 
 if __name__ == "__main__":
