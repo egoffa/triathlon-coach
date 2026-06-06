@@ -4,7 +4,7 @@ An open-source, self-hosted AI triathlon coaching system that analyzes your Stra
 
 ## ✨ Features
 
-- **🧠 Multi-Agent AI System**: CrewAI-powered coaching, analytics, and planning agents
+- **🧠 Multi-Agent AI System**: AI coaching, analytics, and planning agents
 - **🤖 Local LLM Support**: Run Llama models locally via Ollama (llama2, mistral, neural-chat)
 - **📊 Strava Integration**: Pull training data directly from Strava API
 - **🎨 Interactive Web UI**: Beautiful Streamlit interface for easy interaction
@@ -237,10 +237,6 @@ LOG_LEVEL=INFO
 API_HOST=0.0.0.0
 API_PORT=8000
 ENVIRONMENT=development  # or 'production'
-
-# Agents
-CREW_AI_VERBOSE=true
-CREW_AI_MAX_ITERATIONS=5
 ```
 
 ### Model Selection
@@ -319,7 +315,7 @@ docker-compose restart ollama
 ```
 triathlon-coach/
 ├── src/                          # Source code
-│   ├── agents/                   # CrewAI agents
+│   ├── agents/                   # Agents
 │   │   ├── standalone_crew.py
 │   │   └── __init__.py
 │   ├── api/                      # FastAPI endpoints
