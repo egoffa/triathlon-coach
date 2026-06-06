@@ -276,16 +276,6 @@ OLLAMA_MODEL=mistral:7b
 
 See: STRAVA_SIMPLE_AUTH.md
 
-### "ModuleNotFoundError: No module named 'stravalib'"
-
-**Problem:** Python packages not installed
-
-**Solution:**
-```bash
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
 ### "Read-only file system: '/app'"
 
 **Problem:** Log file path incorrect for local dev
@@ -297,18 +287,6 @@ LOG_FILE=./logs/triathlon_coach.log  # Local dev
 # NOT:
 LOG_FILE=/app/logs/triathlon_coach.log  # Docker only
 ```
-
-### Streamlit: "st.radio() got unexpected keyword argument 'value'"
-
-**Problem:** Streamlit version incompatibility
-
-**Solution:** Use latest streamlit_app.py (already fixed)
-
-### "failed to compute cache key: '/.env' not found"
-
-**Problem:** Dockerfile trying to copy .env during build
-
-**Solution:** Use fixed Dockerfile.app (already fixed) - .env mounted at runtime
 
 ### Ollama Connection Refused
 
@@ -581,12 +559,5 @@ All checked? You're ready to use Triathlon Coach AI! 🚀
 
 ---
 
-**Built with ❤️ for triathletes everywhere**
-
-Happy training! 🏊🚴🏃
-
----
-
 **Version:** 1.0.0  
 **Last Updated:** 2024  
-**Status:** Production Ready ✅
